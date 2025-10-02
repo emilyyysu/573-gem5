@@ -1,0 +1,4 @@
+Import('*')
+
+SimObject('MemCpyAccel.py', sim_objects=['MemCpyAccel'])
+Source('memcpyaccel.cc')
