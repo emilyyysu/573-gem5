@@ -1,12 +1,12 @@
 #ifndef __MEMCPYACCEL_HH__
 #define __MEMCPYACCEL_HH__
 
-#include "params/memcpyaccel.hh"
+#include "params/MemCpyAccel.hh"
 #include "dev/dma_device.hh"
 #include "dev/io_device.hh"
 
 namespace gem5
-/{
+{
 
     class MemCpyAccel : public DmaDevice, public BasicPioDevice
     {

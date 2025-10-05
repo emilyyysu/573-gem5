@@ -14,6 +14,9 @@ namespace gem5
 }
 */
 
+class DmaDevice : virtual public SimObject {};
+class BasicPioDevice : virtual public SimObject {};
+
 MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
     : DmaDevice(p), BasicPioDevice(p, 12),
       src(0), dst(0), ctrl_and_len(0),
