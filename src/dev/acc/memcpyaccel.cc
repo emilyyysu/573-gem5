@@ -1,29 +1,25 @@
 #include "dev/acc/memcpyaccel.hh"
 #include "base/trace.hh"
-#include "debug/MemcpyAccel.hh"
-
 #include <iostream>
 
 namespace gem5
 {
 
-/*MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &params) :
-    SimObject(params)
-{
-    std::cout << "Hello World! From a SimObject!" << std::endl;
-}
-*/
+    MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
+        : DmaDevice(p),
+        src(0), dst(0), ctrl_and_len(0), len(0), pio_dev(nullptr)
+    {
+        pio_dev = p.piodevice;
+    }
 
-class DmaDevice : virtual public SimObject {};
-class BasicPioDevice : virtual public SimObject {};
 
-MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
-    : DmaDevice(p), BasicPioDevice(p, 12),
-      src(0), dst(0), ctrl_and_len(0),
-      len(0)
-{
-    pioSize = 12; // 3 4-byte registers
-}
+// MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
+//     : DmaDevice(p), BasicPioDevice(*p.piodevice, 12),
+//       src(0), dst(0), ctrl_and_len(0),
+//       len(0)
+// {
+//     pioSize = 12; // 3 4-byte registers
+// }
 
 void
 MemCpyAccel::startMemcpy()
@@ -56,7 +52,7 @@ MemCpyAccel::dmaWriteComplete(PacketPtr pkt)
 Tick
 MemCpyAccel::read(PacketPtr pkt)
 {
-    Addr offset = pkt->getAddr() - pioAddr;
+    Addr offset = pkt->getAddr() - pio_dev->getAddrRanges().front().start();
 
     uint64_t data = 0;
     switch (offset) {
@@ -68,13 +64,13 @@ MemCpyAccel::read(PacketPtr pkt)
 
     pkt->setUintX(data, ByteOrder::little);
     pkt->makeResponse();
-    return pioDelay; // how long it takes to read from the register
+    return dynamic_cast<const BasicPioDeviceParams&>(pio_dev->params()).pio_latency; // how long it takes to read from the register
 }
 
 Tick
 MemCpyAccel::write(PacketPtr pkt)
 {
-    Addr offset = pkt->getAddr() - pioAddr;
+    Addr offset = pkt->getAddr() - pio_dev->getAddrRanges().front().start();
 
     uint64_t data = pkt->getUintX(ByteOrder::little);
 
@@ -91,7 +87,7 @@ MemCpyAccel::write(PacketPtr pkt)
       default: panic("MemcpyAccel: bad write offset %#x\n", offset);
     }
     pkt->makeResponse();
-    return pioDelay;
+    return dynamic_cast<const BasicPioDeviceParams&>(pio_dev->params()).pio_latency;
 }
 
 } // namespace gem5 

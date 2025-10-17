@@ -8,31 +8,41 @@
 namespace gem5
 {
 
-    class MemCpyAccel : public DmaDevice, public BasicPioDevice
+    class MemCpyAccel : public DmaDevice
     {
-        private: 
+        private:  
             Addr src; // from cpu: address of vector to copy 
             Addr dst; // from cpu: address of output vector
             // bit 31 is from cpu, 1 means start operation, 0 means it's not requesting it 
             // bit 30 is from accelerator, write 1 when it's done and also clear the start bit
             uint32_t ctrl_and_len; // from cpu: length of vector. could be up to 30 bits. bits 30-31 ctrl status
-            int len; // length extracted from ctrl_and_len 32
-
+            int len; // length extracted from ctrl_and_len 32   
+            BasicPioDevice *pio_dev;
 
         public:
             MemCpyAccel(const MemCpyAccelParams &p);
-            Tick read(PacketPtr pkt);
-            Tick write(PacketPtr pkt);
+            Tick read(PacketPtr pkt) override;
+            Tick write(PacketPtr pkt) override;
             void startMemcpy();
             void dmaReadComplete(PacketPtr pkt);
             void dmaWriteComplete(PacketPtr pkt);
 
         
     };
+    class MemCpyPioDev : public BasicPioDevice
+    {
+    public:
+        MemCpyPioDev(const BasicPioDeviceParams &p, Addr size)
+            : BasicPioDevice(p, size) {}
 
+        Tick read(PacketPtr pkt) override { return 0; }
+        Tick write(PacketPtr pkt) override { return 0; }
+    };
 } // namespace gem5
 
-#endif // __LEARNING_GEM5_HELLO_OBJECT_HH__
+
+
+#endif 
 
 /*
 #ifndef __DEV_MEMCPY_ACCEL_HH__
