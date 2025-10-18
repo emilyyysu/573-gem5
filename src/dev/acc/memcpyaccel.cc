@@ -5,11 +5,11 @@
 namespace gem5
 {
 
-    MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
-        : DmaDevice(p),
+    MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
+        : DmaDevice(*p),
         src(0), dst(0), ctrl_and_len(0), len(0), pio_dev(nullptr)
     {
-        pio_dev = p.piodevice;
+        pio_dev = p->piodevice;
     }
 
 
@@ -88,6 +88,21 @@ MemCpyAccel::write(PacketPtr pkt)
     }
     pkt->makeResponse();
     return dynamic_cast<const BasicPioDeviceParams&>(pio_dev->params()).pio_latency;
+}
+
+AddrRangeList
+MemCpyAccel::getAddrRanges() const
+{
+    if (pio_dev)
+        return pio_dev->getAddrRanges();
+    else
+        return {};
+}
+
+
+MemCpyAccel* MemCpyAccelParams::create() const
+{
+    return new MemCpyAccel(this);
 }
 
 } // namespace gem5 

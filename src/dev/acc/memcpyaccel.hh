@@ -20,7 +20,8 @@ namespace gem5
             BasicPioDevice *pio_dev;
 
         public:
-            MemCpyAccel(const MemCpyAccelParams &p);
+            MemCpyAccel(const MemCpyAccelParams *p);
+            AddrRangeList getAddrRanges() const override;
             Tick read(PacketPtr pkt) override;
             Tick write(PacketPtr pkt) override;
             void startMemcpy();
