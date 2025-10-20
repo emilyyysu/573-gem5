@@ -524,6 +524,29 @@ decode QUADRANT default Unknown::unknown() {
         }
     }
     0x3: decode OPCODE5 {
+        0x1d: decode FUNCT3 {
+            format ROp {
+                0x0: decode FUNCT7 {
+                    // TODO: Idea! Use add16 opcode in order to test softmax instruction. FINALLY PROGRESS
+                    0x20: add16({{
+                        uint16_t Rd_16 = (uint16_t)(Rs1_ud) +
+                                                    (uint16_t)(Rs2_ud);
+                        uint16_t Rd_32 = (uint16_t)((Rs1_ud >> 16) +
+                                                    (Rs2_ud >> 16));
+                        uint16_t Rd_48 = (uint16_t)((Rs1_ud >> 32) +
+                                                    (Rs2_ud >> 32));
+                        uint16_t Rd_64 = (uint16_t)((Rs1_ud >> 48) +
+                                                    (Rs2_ud >> 48));
+                        uint64_t result = Rd_64;
+                        result = result << 16 | Rd_48;
+                        result = result << 16 | Rd_32;
+                        result = result << 16 | Rd_16;
+                        Rd = result;
+
+                    }}, IntAluOp);
+                }
+            }
+        }
         0x00: decode FUNCT3 {
             format Load {
                 0x0: lb({{
@@ -1597,13 +1620,37 @@ decode QUADRANT default Unknown::unknown() {
                         Rd = rvSext(rvZext(Rs1) >>
                                     rvSelect(Rs2<4:0>, Rs2<5:0>));
                     }});
-                    0x1: divu({{
-                        if (machInst.rv_type == RV32) {
-                            Rd = (int32_t)divu<uint32_t>(Rs1, Rs2);
-                        } else {
-                            Rd = divu<uint64_t>(Rs1, Rs2);
+                    // 0x1: divu({{
+                    //     if (machInst.rv_type == RV32) {
+                    //         Rd = (int32_t)divu<uint32_t>(Rs1, Rs2);
+                    //     } else {
+                    //         Rd = divu<uint64_t>(Rs1, Rs2);
+                    //     }
+                    // }}, IntDivOp);
+
+                    // Instruction originally called vle32_v
+                    0x1: Softmax::divu({{
+                        Addr addr = Rs1;
+                        RiscvISA::VecRegContainer myMem = {};
+                        const std::vector<bool> byte_enable(Rs2 * 4, true);
+                        Fault fault = xc->readMem(addr, myMem.as<uint8_t>(), Rs2 * 4,
+                            Request::Flags{}, byte_enable);
+
+                        for (int i=0; i < Rs2; i++) {
+                            float tmp = 2*myMem.as<float>()[i];
+                            myMem.as<float>()[i] = tmp;
                         }
-                    }}, IntDivOp);
+                        fault = xc->writeMem(myMem.as<uint8_t>(), Rs2 * 4, Rs1, Request::Flags{},
+                         nullptr, byte_enable);
+                    }});
+
+                    // divu({{
+                    //     int test = Mem_sw;
+                    //     float exp_test = std::exp(test);
+                    //     Rd_sd = (int)(exp_test);
+                        // int test[i] = Mem_sw[i];
+                        // Rd_sd = test[i];
+                    // }});
                     0x20: sra({{
                         Rd = rvSext(Rs1_sd) >> rvSelect(Rs2<4:0>, Rs2<5:0>);
                     }});

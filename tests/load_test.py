@@ -41,6 +41,7 @@ system.clk_domain.voltage_domain = VoltageDomain()
 system.mem_mode = "timing"
 system.mem_ranges = [AddrRange("512MB")]
 system.cpu = RiscvTimingSimpleCPU()
+system.cpu.ArchISA.riscv_type = "RV32"
 
 system.membus = SystemXBar()
 
@@ -59,9 +60,7 @@ system.system_port = system.membus.cpu_side_ports
 thispath = os.path.dirname(os.path.realpath(__file__))
 binary = os.path.join(
     thispath,
-    "../../../",
-    # "tests/test-progs/hello/bin/riscv/linux/hello",
-    "cpu_tests/benchmarks/bin/riscv/Bubblesort",
+    "test-progs/softmax/load_test.elf",
 )
 
 system.workload = SEWorkload.init_compatible(binary)

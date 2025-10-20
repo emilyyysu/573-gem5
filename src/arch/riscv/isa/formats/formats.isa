@@ -49,3 +49,6 @@
 
 // Include the unknown
 ##include "unknown.isa"
+
+// Include softmax
+##include "softmax.isa"

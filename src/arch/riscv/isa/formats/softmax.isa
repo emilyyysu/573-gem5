@@ -1,0 +1,51 @@
+def template SoftmaxConstructor {{
+    %(class_name)s::%(class_name)s(ExtMachInst machInst):
+        %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(set_reg_idx_arr)s;
+        %(constructor)s;
+
+        // overwrite default flags
+        flags[IsLoad] = true;
+        flags[IsStore] = true;
+    }
+}};
+
+let {{
+def SoftmaxBase(name, Name, memacc_code, base_class):
+
+    iop = InstObjParams(name, Name, base_class,
+        {'code': memacc_code})
+
+    # (header_output, decoder_output, decode_block, exec_output)
+    return (BasicDeclare.subst(iop),
+        SoftmaxConstructor.subst(iop),
+        BasicDecode.subst(iop),
+        BasicExecute.subst(iop))
+}};
+
+
+
+
+// TODO:
+// 1. Needs to be able to load (DONE)
+// 2. Needs to be able to load multiple data (TBD/How do I load multiple words in? I only have 1 destination register)
+// 3. Needs to be able to perform an operation on that loaded data (Done for single load/TBD for multiple data)
+// 4. Needs to be able to exponentiate the data (Done/Need to figure out how exponentiation happens in the simulated CPU though)
+// 5. Needs to be able store the softmax values (TBD/See fsw instruction for ideas on how store a FP value)
+// How do I do multiple instructions in 1 instruction? Maybe macro operations consisting of micro ops
+// look into this more
+
+
+// def format Load(memacc_code, ea_code = {{EA = rvZext(Rs1);}},
+//         offset_code={{offset = sext<12>(IMM12);}},
+//         mem_flags=[], inst_flags=[]) {{
+//     (header_output, decoder_output, decode_block, exec_output) = \
+//         LoadStoreBase(name, Name, offset_code, ea_code, memacc_code, mem_flags,
+//         inst_flags, 'Load', exec_template_base='Load')
+// }};
+
+def format Softmax(memacc_code) {{
+    (header_output, decoder_output, decode_block, exec_output) = \
+        SoftmaxBase(name, Name, memacc_code, 'Softmax')
+}};
