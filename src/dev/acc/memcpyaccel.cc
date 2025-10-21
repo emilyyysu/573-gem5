@@ -117,7 +117,7 @@ MemCpyAccel::write(PacketPtr pkt)
 AddrRangeList
 MemCpyAccel::getAddrRanges() const
 {
-   return {};
+   return {RangeSize(0x2F000000, 0x0C)};
 }
 
 MemCpyAccel* MemCpyAccelParams::create() const
