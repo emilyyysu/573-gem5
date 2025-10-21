@@ -9,7 +9,12 @@ system.clk_domain.clock = "1GHz"
 system.clk_domain.voltage_domain = VoltageDomain()
 
 system.mem_mode = "timing"
-system.mem_ranges = [AddrRange("512MiB")]
+system.mem_ranges = [
+    AddrRange(0x80000000, size='512MiB'),   # normal DRAM
+    AddrRange(0x2F000000, size='12B')      # MemCpyAccel PIO registers
+]
+
+#system.mem_ranges = [AddrRange("512MiB")]
 system.cpu = RiscvTimingSimpleCPU()
 
 system.membus = SystemXBar()
@@ -21,7 +26,11 @@ system.membus = SystemXBar()
 
 system.memcpy_accel = MemCpyAccel(pio_addr=0x2F000000, pio_size=0x0C)
 system.memcpy_accel.dma = system.membus.cpu_side_ports
+#system.memcpy_accel.pio = system.membus.mem_side_ports
+
+#system.pio_bus = SystemXBar()
 system.memcpy_accel.pio = system.membus.mem_side_ports
+
 
 system.cpu.icache_port = system.membus.cpu_side_ports
 system.cpu.dcache_port = system.membus.cpu_side_ports
@@ -30,7 +39,9 @@ system.cpu.createInterruptController()
 
 system.mem_ctrl = MemCtrl()
 system.mem_ctrl.dram = DDR3_1600_8x8()
-system.mem_ctrl.dram.range = system.mem_ranges[0]
+#system.mem_ctrl.dram.range = system.mem_ranges[0]
+
+system.mem_ctrl.dram.range = AddrRange(0x80000000, size='512MiB')
 system.mem_ctrl.port = system.membus.mem_side_ports
 
 system.system_port = system.membus.cpu_side_ports
@@ -51,9 +62,6 @@ system.system_port = system.membus.cpu_side_ports
 
 # root = Root(full_system=False, system=system)
 # m5.instantiate()
-system.mem_ranges = [
-    AddrRange(0x80000000, size='512MiB')  # Map all addresses your ELF touches
-]
 
 # --- Workload ---
 thispath = os.path.dirname(os.path.realpath(__file__))
