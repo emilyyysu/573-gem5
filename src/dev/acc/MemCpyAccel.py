@@ -5,9 +5,14 @@ class MemCpyAccel(DmaDevice):
     type = 'MemCpyAccel'
     cxx_header = "dev/acc/memcpyaccel.hh"
     cxx_class = "gem5::MemCpyAccel"
+    dma = MasterPort("DMA master port")
 
-    piodevice = Param.BasicPioDevice("PIO interface for MemCpyAccel")
+    # piodevice = Param.BasicPioDevice("PIO interface for MemCpyAccel")
 
+class MemCpyPioDevice(BasicPioDevice):
+    type = 'MemCpyPioDevice'
+    cxx_header = "dev/acc/memcpyaccel.hh"
+    cxx_class = "gem5::MemCpyPioDevice"
 
 # from m5.params import *
 # from m5.SimObject import SimObject

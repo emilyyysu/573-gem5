@@ -4,13 +4,18 @@
 
 namespace gem5
 {
-
     MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
         : DmaDevice(*p),
-        src(0), dst(0), ctrl_and_len(0), len(0), pio_dev(nullptr)
-    {
-        pio_dev = p->piodevice;
-    }
+        src(0), dst(0), ctrl_and_len(0), len(0)
+    {}
+
+    
+    // MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
+    //     : DmaDevice(*p),
+    //     src(0), dst(0), ctrl_and_len(0), len(0), pio_dev(nullptr)
+    // {
+    //     pio_dev = p->piodevice;
+    // }
 
 
 // MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
@@ -33,10 +38,28 @@ void
 MemCpyAccel::dmaReadComplete(PacketPtr pkt)
 {
     // issue a write with the same data
-    uint8_t *data = new uint8_t[len];
-    memcpy(data, pkt->getConstPtr<uint8_t>(), len);  
-    dmaWrite(dst, static_cast<unsigned long>(len), nullptr, data);
+    // uint8_t *data = new uint8_t[len];
+    // memcpy(data, pkt->getConstPtr<uint8_t>(), len);  
+    // dmaWrite(dst, static_cast<unsigned long>(len), nullptr, data);
     //dmaWrite(dst, static_cast<unsigned long>(len), nullptr, pkt->getConstPtr<uint8_t>());
+
+    // Extract base and exponent from memory
+    const uint64_t *data = pkt->getConstPtr<uint64_t>();
+    
+    // Assume 'len' is the number of elements (not bytes)
+    std::vector<double> output(len);
+
+    for (int i = 0; i < len; i++) {
+        output[i] = std::exp(data[i]);
+    }
+    
+   // 3. Allocate memory for DMA writeback
+    uint8_t *writeData = new uint8_t[len * sizeof(double)];
+    std::memcpy(writeData, output.data(), len * sizeof(double));
+     // 4. Kick off the DMA write
+     
+    dmaWrite(dst, len * sizeof(double), nullptr, writeData);
+    
 }
 
 
@@ -52,7 +75,8 @@ MemCpyAccel::dmaWriteComplete(PacketPtr pkt)
 Tick
 MemCpyAccel::read(PacketPtr pkt)
 {
-    Addr offset = pkt->getAddr() - pio_dev->getAddrRanges().front().start();
+    //Addr offset = pkt->getAddr() - pio_dev->getAddrRanges().front().start();
+    Addr offset = pkt->getAddr() - pioAddr;
 
     uint64_t data = 0;
     switch (offset) {
@@ -64,13 +88,13 @@ MemCpyAccel::read(PacketPtr pkt)
 
     pkt->setUintX(data, ByteOrder::little);
     pkt->makeResponse();
-    return dynamic_cast<const BasicPioDeviceParams&>(pio_dev->params()).pio_latency; // how long it takes to read from the register
+    return pioDelay; // how long it takes to read from the register
 }
 
 Tick
 MemCpyAccel::write(PacketPtr pkt)
 {
-    Addr offset = pkt->getAddr() - pio_dev->getAddrRanges().front().start();
+    Addr offset = pkt->getAddr() - pioAddr;
 
     uint64_t data = pkt->getUintX(ByteOrder::little);
 
@@ -87,18 +111,14 @@ MemCpyAccel::write(PacketPtr pkt)
       default: panic("MemcpyAccel: bad write offset %#x\n", offset);
     }
     pkt->makeResponse();
-    return dynamic_cast<const BasicPioDeviceParams&>(pio_dev->params()).pio_latency;
+    return pioDelay;
 }
 
 AddrRangeList
 MemCpyAccel::getAddrRanges() const
 {
-    if (pio_dev)
-        return pio_dev->getAddrRanges();
-    else
-        return {};
+   return {};
 }
-
 
 MemCpyAccel* MemCpyAccelParams::create() const
 {
