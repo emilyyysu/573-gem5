@@ -2536,13 +2536,27 @@ decode QUADRANT default Unknown::unknown() {
                         Rd = rvSext(rvZext(Rs1) >>
                                     rvSelect(Rs2<4:0>, Rs2<5:0>));
                     }});
-                    0x1: divu({{
-                        if (machInst.rv_type == RV32) {
-                            Rd = (int32_t)divu<uint32_t>(Rs1, Rs2);
-                        } else {
-                            Rd = divu<uint64_t>(Rs1, Rs2);
+                    // 0x1: divu({{
+                    //     if (machInst.rv_type == RV32) {
+                    //         Rd = (int32_t)divu<uint32_t>(Rs1, Rs2);
+                    //     } else {
+                    //         Rd = divu<uint64_t>(Rs1, Rs2);
+                    //     }
+                    // }}, IntDivOp);
+                    0x1: Softmax::divu({{
+                        Addr addr = Rs1;
+                        RiscvISA::VecRegContainer myMem = {};
+                        const std::vector<bool> byte_enable(Rs2 * 4, true);
+                        Fault fault = xc->readMem(addr, myMem.as<uint8_t>(), Rs2 * 4,
+                            Request::Flags{}, byte_enable);
+
+                        for (int i=0; i < Rs2; i++) {
+                            float tmp = 2*myMem.as<float>()[i];
+                            myMem.as<float>()[i] = tmp;
                         }
-                    }}, IntDivOp);
+                        fault = xc->writeMem(myMem.as<uint8_t>(), Rs2 * 4, Rs1, Request::Flags{},
+                         nullptr, byte_enable);
+                    }});
                     0x7: czero_eqz({{
                         Rd = rvSext(Rs2) == 0 ? 0 : rvSext(Rs1);
                     }});

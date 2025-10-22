@@ -1,0 +1,30 @@
+def template SoftmaxConstructor {{
+    %(class_name)s::%(class_name)s(ExtMachInst machInst):
+        %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(set_reg_idx_arr)s;
+        %(constructor)s;
+
+        // overwrite default flags
+        flags[IsLoad] = true;
+        flags[IsStore] = true;
+    }
+}};
+
+let {{
+def SoftmaxBase(name, Name, memacc_code, base_class):
+
+    iop = InstObjParams(name, Name, base_class,
+        {'code': memacc_code})
+
+    # (header_output, decoder_output, decode_block, exec_output)
+    return (BasicDeclare.subst(iop),
+        SoftmaxConstructor.subst(iop),
+        BasicDecode.subst(iop),
+        BasicExecute.subst(iop))
+}};
+
+def format Softmax(memacc_code) {{
+    (header_output, decoder_output, decode_block, exec_output) = \
+        SoftmaxBase(name, Name, memacc_code, 'Softmax')
+}};
