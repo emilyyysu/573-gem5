@@ -2563,30 +2563,48 @@ decode QUADRANT default Unknown::unknown() {
                     //         nullptr, byte_enable);
                     //     Rd = 0;
                     // }});
-                    0x1: Softmax::divu({{
+                    0x1: Softmax::divu(memacc_code={{
+                        this->num_elem = Rs2;
+                        if(this->tmp != nullptr) {
+                            delete[] tmp;
+                        }
+                        this->tmp = new float[num_elem];
+                        
                         Addr addr = Rs1;
-                        // uint32_t mem_size = Rs2 * 4;
                         int32_t myMem[Rs2];
-                        // const std::vector<bool> byte_enable(mem_size, true);
-                        // Fault fault = initiateMemRead(xc, addr, mem_size, Request::Flags{},
-                        //     byte_enable);
                         Fault fault[Rs2];
                         {
                         for(int i = 0; i < Rs2; i++) {
                             myMem[i] = {};
                             fault[i] = readMemAtomicLE(xc, traceData, addr + (i * 4), myMem[i], MMU::WordAlign);
+                            this->tmp[i] = std::bit_cast<float>(myMem[i]);
                             if (fault[i] != NoFault)
                                 return fault[i];
                         }
                         }
-                        // {
-                        // Fault fault =
-                        //     readMemAtomicLE(xc, traceData, addr, myMem, MMU::WordAlign);
-                        // if (fault != NoFault)
-                        //     return fault;
-                        // }
-                        Rd = std::exp(myMem[2]) * Rs2;
-                    }});
+                    }}, inst1_flags=MemReadOp, operation_code={{
+                        uint64_t exp_tmp;
+                        uint64_t exp_sum = 0;
+                        for(int i = 0; i < Rs2; i++) {
+                            exp_tmp = std::exp(this->tmp[i]);
+                            exp_sum += exp_tmp;
+                        }
+                        for(int i = 0; i < Rs2; i++) {
+                            this->tmp[i] = std::exp(this->tmp[i]) / exp_sum;
+                        }
+                    }}, inst2_flags=IntAluOp, store_memacc_code={{
+                        Addr addr = Rs1;
+                        uint32_t myMem[Rs2];
+                        Fault fault[Rs2];
+                        {
+                        for(int i = 0; i < Rs2; i++) {
+                            myMem[i] = std::bit_cast<int32_t>(this->tmp[i]);
+                            fault[i] = writeMemAtomicLE(xc, traceData, myMem, addr + (i * 4), MMU::WordAlign);
+                            if (fault[i] != NoFault)
+                                return fault[i];
+                        }
+                        }
+                    }}, inst3_flags=MemWriteOp);
                     0x7: czero_eqz({{
                         Rd = rvSext(Rs2) == 0 ? 0 : rvSext(Rs1);
                     }});

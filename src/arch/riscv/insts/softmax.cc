@@ -51,8 +51,8 @@ Softmax::generateDisassembly(Addr pc, const loader::SymbolTable *symtab) const
 }
 
 // Softmax::Softmax():tmp(nullptr){}
-// Softmax::~Softmax(){
-//     if (this->tmp != nullptr) delete this->tmp;
-// }
+Softmax::~Softmax(){
+    if (this->tmp != nullptr) delete this->tmp;
+}
 } // namespace RiscvISA
 } // namespace gem5

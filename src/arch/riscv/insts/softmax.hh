@@ -6,6 +6,7 @@
 #include "arch/riscv/insts/static_inst.hh"
 #include "cpu/exec_context.hh"
 #include "cpu/static_inst.hh"
+#include <bit>
 
 namespace gem5
 {
@@ -21,9 +22,11 @@ class Softmax : public RiscvStaticInst
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;
 
-    // float *tmp;
-    // ~Softmax();
-    // Softmax();
+    float *tmp;
+    ~Softmax();
+    Softmax();
+
+    size_t num_elem;
 };
 
 } // namespace RiscvISA
