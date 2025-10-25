@@ -2543,19 +2543,49 @@ decode QUADRANT default Unknown::unknown() {
                     //         Rd = divu<uint64_t>(Rs1, Rs2);
                     //     }
                     // }}, IntDivOp);
+                    // 0x1: Softmax::divu({{
+                    //     Addr addr = Rs1;
+                    //     uint32_t mem_size = Rs2 * 4;
+                    //     RiscvISA::VecRegContainer myMem = {};
+                    //     const std::vector<bool> byte_enable(mem_size, true);
+                    //     // Fault fault = initiateMemRead(xc, addr, mem_size, Request::Flags{},
+                    //     //     byte_enable);
+                    //     Fault fault = xc->readMem(addr, myMem.as<uint8_t>(), mem_size,
+                    //         Request::Flags{}, byte_enable);
+                        
+                    //     int accum = 0;
+                    //     for (int i=0; i < Rs2; i++) {
+                    //         int tmp = 2*myMem.as<uint8_t>()[i];
+                    //         myMem.as<uint8_t>()[i] = tmp;
+                    //         accum += (int)tmp;
+                    //     }
+                    //     fault = xc->writeMem(myMem.as<uint8_t>(), mem_size, Rs1, Request::Flags{},
+                    //         nullptr, byte_enable);
+                    //     Rd = 0;
+                    // }});
                     0x1: Softmax::divu({{
                         Addr addr = Rs1;
-                        RiscvISA::VecRegContainer myMem = {};
-                        const std::vector<bool> byte_enable(Rs2 * 4, true);
-                        Fault fault = xc->readMem(addr, myMem.as<uint8_t>(), Rs2 * 4,
-                            Request::Flags{}, byte_enable);
-
-                        for (int i=0; i < Rs2; i++) {
-                            float tmp = 2*myMem.as<float>()[i];
-                            myMem.as<float>()[i] = tmp;
+                        // uint32_t mem_size = Rs2 * 4;
+                        int32_t myMem[Rs2];
+                        // const std::vector<bool> byte_enable(mem_size, true);
+                        // Fault fault = initiateMemRead(xc, addr, mem_size, Request::Flags{},
+                        //     byte_enable);
+                        Fault fault[Rs2];
+                        {
+                        for(int i = 0; i < Rs2; i++) {
+                            myMem[i] = {};
+                            fault[i] = readMemAtomicLE(xc, traceData, addr + (i * 4), myMem[i], MMU::WordAlign);
+                            if (fault[i] != NoFault)
+                                return fault[i];
                         }
-                        fault = xc->writeMem(myMem.as<uint8_t>(), Rs2 * 4, Rs1, Request::Flags{},
-                         nullptr, byte_enable);
+                        }
+                        // {
+                        // Fault fault =
+                        //     readMemAtomicLE(xc, traceData, addr, myMem, MMU::WordAlign);
+                        // if (fault != NoFault)
+                        //     return fault;
+                        // }
+                        Rd = std::exp(myMem[2]) * Rs2;
                     }});
                     0x7: czero_eqz({{
                         Rd = rvSext(Rs2) == 0 ? 0 : rvSext(Rs1);

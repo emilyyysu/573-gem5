@@ -20,6 +20,10 @@ class Softmax : public RiscvStaticInst
 
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;
+
+    // float *tmp;
+    // ~Softmax();
+    // Softmax();
 };
 
 } // namespace RiscvISA

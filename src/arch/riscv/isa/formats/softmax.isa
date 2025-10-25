@@ -1,3 +1,20 @@
+def template SoftmaxDeclare {{
+    class %(class_name)s : public %(base_class)s
+    {
+      private:
+        %(reg_idx_arr_decl)s;
+
+      public:
+        /// Constructor.
+        %(class_name)s(ExtMachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
+        Fault initiateAcc(ExecContext *, trace::InstRecord *) const override;
+        Fault completeAcc(PacketPtr, ExecContext *,
+                      trace::InstRecord *) const override;
+        using %(base_class)s::generateDisassembly;
+    };
+}};
+
 def template SoftmaxConstructor {{
     %(class_name)s::%(class_name)s(ExtMachInst machInst):
         %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
@@ -8,6 +25,55 @@ def template SoftmaxConstructor {{
         // overwrite default flags
         flags[IsLoad] = true;
         flags[IsStore] = true;
+        // memAccessFlags = MMU::WordAlign; // NOTE: Haven't tried this yet
+    }
+}};
+
+def template SoftmaxInitTemplate {{
+
+Fault
+%(class_name)s::initiateAcc(ExecContext* xc,
+                            trace::InstRecord* traceData) const
+{
+    uint64_t Rs1 = 0;
+    uint64_t Rs2 = 0;
+    Rs1 = xc->getRegOperand(this, 0);
+    Rs2 = xc->getRegOperand(this, 1);
+        
+    Addr addr = Rs1;
+    // uint32_t mem_size = Rs2 * 4;
+    // RiscvISA::VecRegContainer myMem = {};
+    int32_t myMem = {};
+
+    // const std::vector<bool> byte_enable(mem_size, true);
+    
+    // Fault fault = initiateMemRead(xc, addr, mem_size, Request::Flags{}, byte_enable);
+
+    return initiateMemRead(xc, traceData, addr, myMem, MMU::WordAlign);
+}
+}};
+
+def template SoftmaxCompTemplate {{
+    Fault
+    %(class_name)s::completeAcc(PacketPtr pkt, ExecContext *xc,
+        trace::InstRecord *traceData) const
+    {
+        // RiscvISA::VecRegContainer myMem = {};
+        int64_t Rd = 0;
+        uint64_t Rs2 = 0;
+        Rs2 = xc->getRegOperand(this, 1);
+        int32_t myMem = {};
+        getMemLE(pkt, myMem, traceData);
+        Rd = std::exp(myMem) * Rs2; // NOTE: I'm trying to test getting 1 word of data then performing exponentiation
+        RegVal final_val = Rd;
+        {
+            xc->setRegOperand(this, 0, final_val);
+            if (traceData) {
+                traceData->setData(intRegClass, final_val);
+            }
+        };
+        // memcpy(myMem.as<uint8_t>(), pkt->getPtr<uint8_t>(), pkt->getSize());
+        return NoFault;
     }
 }};
 
@@ -17,11 +83,15 @@ def SoftmaxBase(name, Name, memacc_code, base_class):
     iop = InstObjParams(name, Name, base_class,
         {'code': memacc_code})
 
-    # (header_output, decoder_output, decode_block, exec_output)
-    return (BasicDeclare.subst(iop),
-        SoftmaxConstructor.subst(iop),
-        BasicDecode.subst(iop),
-        BasicExecute.subst(iop))
+    header_output = SoftmaxDeclare.subst(iop)
+    decoder_output = SoftmaxConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+        SoftmaxInitTemplate.subst(iop) +
+        SoftmaxCompTemplate.subst(iop))
+
+    return (header_output, decoder_output, decode_block, exec_output)
+        
 }};
 
 def format Softmax(memacc_code) {{
