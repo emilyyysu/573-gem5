@@ -6,9 +6,10 @@ class MemCpyAccel(DmaDevice):
     cxx_header = "dev/acc/memcpyaccel.hh"
     cxx_class = "gem5::MemCpyAccel"
     dma = MasterPort("DMA master port")
-
-    pio_addr = Param.Addr(0x2F000000, "Base address for PIO registers")
-    pio_size = Param.Addr(0x0C, "Size of PIO register space")
+    pio = SlavePort("PIO port for register access")
+    
+    pioAddr = Param.Addr(0x60000000, "Base address for PIO registers")
+    pio_size = Param.Addr(0x20, "Size of PIO register space")
 
     # piodevice = Param.BasicPioDevice("PIO interface for MemCpyAccel")
 

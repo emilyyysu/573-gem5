@@ -22,7 +22,7 @@ class MemCpyBase
     static const int REG_DST   = 0x04;
     static const int REG_CTRL  = 0x08;
 
-    bool readRegister(PacketPtr pkt, uint32_t &reg, Addr pio_addr);
+    bool readRegister(PacketPtr pkt, uint32_t &reg, Addr pioAddr);
 };
 
 /**
