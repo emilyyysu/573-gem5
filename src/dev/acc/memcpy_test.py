@@ -9,10 +9,17 @@ system.clk_domain.clock = "1GHz"
 system.clk_domain.voltage_domain = VoltageDomain()
 
 system.mem_mode = "timing"
+# system.mem_ranges = [
+#     AddrRange((0x40000000,0x60000000)),   # normal DRAM
+#     AddrRange((0x60000000,0x60000020))      # MemCpyAccel PIO registers
+# ]
+
 system.mem_ranges = [
-    AddrRange((0x40000000,0x60000000)),   # normal DRAM
+    AddrRange("512MiB"),   # normal DRAM
     AddrRange((0x60000000,0x60000020))      # MemCpyAccel PIO registers
 ]
+
+#system.mem_ranges = [AddrRange("2GB")]
 
 #system.memcpy_accel = MemCpyAccel(pio_addr=0x40000000, pio_size=0x10)
 
@@ -42,9 +49,9 @@ system.cpu.createInterruptController()
 
 system.mem_ctrl = MemCtrl()
 system.mem_ctrl.dram = DDR3_1600_8x8()
-system.mem_ctrl.dram.range = system.mem_ranges[0]
+#system.mem_ctrl.dram.range = system.mem_ranges[0]
 
-#system.mem_ctrl.dram.range = AddrRange(0x40000000, size='512MiB')
+system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
 
 system.system_port = system.membus.cpu_side_ports

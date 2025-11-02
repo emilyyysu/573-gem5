@@ -1,17 +1,17 @@
-typedef unsigned long long uint64_t;
+typedef unsigned long uint32_t;
 
 static void print_str(const char *s)
 {
-    register uint64_t a0 asm("a0") = 1; // fd = 1 (stdout)
+    register uint32_t a0 asm("a0") = 1; // fd = 1 (stdout)
     register const char *a1 asm("a1") = s;
-    register uint64_t a2 asm("a2") = 0;
+    register uint32_t a2 asm("a2") = 0;
     // compute length
     while (s[a2]) a2++;
-    register uint64_t a7 asm("a7") = 64; // write syscall
+    register uint32_t a7 asm("a7") = 64; // write syscall
     asm volatile("ecall" : "+r"(a0) : "r"(a1), "r"(a2), "r"(a7));
 }
 
-static void print_hex(uint64_t val)
+static void print_hex(uint32_t val)
 {
     char buf[19];
     buf[0] = '0';
@@ -27,35 +27,52 @@ static void print_hex(uint64_t val)
 
 void _start()
 {
-    volatile uint64_t *src = (volatile uint64_t *)0x40000000;
-    volatile uint64_t *dst = (volatile uint64_t *)0x40000010;
+    volatile uint32_t *src = (volatile uint32_t *)0x40000000;
+    volatile uint32_t *dst = (volatile uint32_t *)0x40000010;
 
-    volatile uint64_t *ctrl_reg = (uint64_t *)0x60000008;
-    volatile uint64_t *dst_reg = (uint64_t *)0x60000004;
-    volatile uint64_t *src_reg = (uint64_t *)0x60000000 + 0x00;
+    volatile uint32_t *ctrl_reg = (uint32_t *)0x60000008;
+    volatile uint32_t *dst_reg = (uint32_t *)0x60000004;
+    volatile uint32_t *src_reg = (uint32_t *)0x60000000 + 0x00;
 
-    // src[0] = 0x3ff0000000000000;
-    // src[1] = 0x3ff0000000000000;
-    // src[2] = 0x3ff0000000000000;
+    src[0] = 0x1;
+    src[1] = 0x2;
 
     print_str("src addr = ");
-    print_hex((uint64_t)src);
+    print_hex((uint32_t)src);
     print_str("dst addr = ");
-    print_hex((uint64_t)dst);
+    print_hex((uint32_t)dst);
 
     print_str("setting source reg:");
-    print_hex((uint64_t)src_reg);
-    *src_reg = (uint64_t)src;
+    print_hex((uint32_t)src_reg);
+    *src_reg = (uint32_t)src;
 
     print_str("setting dst reg: ");
-    print_hex((uint64_t)dst_reg);
-    *dst_reg = (uint64_t)dst;
+    print_hex((uint32_t)dst_reg);
+    *dst_reg = (uint32_t)dst;
 
     print_str("setting start bit and length: ");
-    *ctrl_reg = (3 * 8) | (1ULL << 31);
-
+    *ctrl_reg = (8) | (1ULL << 31);
+    //while (1) {}
     while ((*ctrl_reg & (1UL << 30)) == 0) {}
 
+    print_str("Checking src: ");
+    print_hex((uint32_t)src[0]);
+    print_str(" ");
+    print_hex((uint32_t)src[1]);
+    // print_str(" ");
+    // print_hex((uint32_t)src[2]);
+    print_str("\n");
+    
+
+    print_str("Checking dst: ");
+    print_hex((uint32_t)dst[0]);
+    print_str(" ");
+    print_hex((uint32_t)dst[1]);
+    // print_str(" ");
+    // print_hex((uint32_t)dst[2]);
+    print_str("\n");
+    
+    print_str("Expected: 1 2 3 \n");
     print_str("Done\n");
 
     asm volatile("li a7, 93\nli a0, 0\necall"); // exit(0)

@@ -7,86 +7,147 @@
 namespace gem5
 {
     MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
-        : DmaDevice(*p),
-        src(0), dst(0), ctrl_and_len(0), len(0), pioAddr(0x60000000)
+        : DmaDevice(*p), 
+        src(0), dst(0), ctrl_and_len(0), len(0), pioAddr(0x60000000), pendingReadBuf(nullptr), pendingWriteBuf(nullptr)
     {
         std::cout << "does this construct? " << std::endl;
         DPRINTF(MemCpyAccelDebug, "MemCpyAccel constructed\n");
     }
-
-    
-    // MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
-    //     : DmaDevice(*p),
-    //     src(0), dst(0), ctrl_and_len(0), len(0), pio_dev(nullptr)
-    // {
-    //     pio_dev = p->piodevice;
-    // }
-
-
-// MemCpyAccel::MemCpyAccel(const MemCpyAccelParams &p)
-//     : DmaDevice(p), BasicPioDevice(*p.piodevice, 12),
-//       src(0), dst(0), ctrl_and_len(0),
-//       len(0)
-// {
-//     pioSize = 12; // 3 4-byte registers
-// }
 
 void
 MemCpyAccel::startMemcpy()
 {
     // issue first read
     // int len = ctrl_and_len & ~(0b11 << 30); // clear left two bits 
-    DPRINTF(MemCpyAccelDebug,
-        "Starting memcpy: src=%#x dst=%#x len=%d (bytes)\n",
+   DPRINTF(MemCpyAccelDebug,
+        "Starting memcpy: src=%#x dst=%#x len=%d (elements?)\n",
         src, dst, len);
-    dmaRead(src, len, nullptr, 0); // read all of them
+
+    // Interpret `len` as number of 64-bit words. If your protocol gives bytes instead,
+    // set sizeBytes = len directly.
+    size_t sizeBytes = static_cast<size_t>(len) * sizeof(uint64_t);
+
+    // Free any previous pending read buffer (if present)
+    if (pendingReadBuf) {
+        delete[] pendingReadBuf;
+        pendingReadBuf = nullptr;
+    }
+
+    // Allocate the buffer in bytes
+    pendingReadBuf = new uint8_t[sizeBytes];
+    pendingReadSize = sizeBytes;
+
+    // dmaRead expects size in bytes
+    DPRINTF(MemCpyAccelDebug,
+    "About to call dmaRead: addr=%#llx size=%lu pendingReadBuf=%p\n",
+    static_cast<long long>(src),
+    (unsigned long) sizeBytes,
+    pendingReadBuf);
+    
+    dmaRead(src,
+        static_cast<int>(sizeBytes),
+        new EventFunctionWrapper([this, sizeBytes]{ this->dmaReadComplete(sizeBytes); },
+                                 "MemcpyAccel DMA read complete"),
+        pendingReadBuf);
+    //dmaRead(src, static_cast<int>(sizeBytes), nullptr, pendingReadBuf);
+}
+
+void MemCpyAccel::performComputation(size_t bytes) {
+    
+    // compute number of u64 words
+    size_t num_u64 = bytes / sizeof(uint64_t);
+
+    const uint8_t *srcBytes = pendingReadBuf;
+    const uint64_t *data = reinterpret_cast<const uint64_t *>(srcBytes);
+    
+    // DPRINTF(MemCpyAccelDebug, "DMA READ complete: got %zu bytes\n", bytes);
+    // for (size_t i = 0; i < std::min<size_t>(num_u64, 8); ++i) {
+    //     DPRINTF(MemCpyAccelDebug,
+    //         "  READ[%zu] @%#llx = %#llx\n",
+    //         i, (unsigned long long)(src + i * sizeof(uint64_t)), (unsigned long long)data[i]);
+    // }
+
+    size_t out_elems = num_u64;
+    std::vector<double> output(out_elems);
+    for (size_t i = 0; i < out_elems; ++i) {
+        output[i] = std::exp(static_cast<double>(data[i])); // your transform
+    }
+
+    // prepare write-back buffer (bytes)
+    if (pendingWriteBuf) {
+        delete[] pendingWriteBuf;
+        pendingWriteBuf = nullptr;
+    }
+    pendingWriteSize = out_elems * sizeof(double);
+    pendingWriteBuf = new uint8_t[pendingWriteSize];
+    std::memcpy(pendingWriteBuf, output.data(), pendingWriteSize);
+
+    DPRINTF(MemCpyAccelDebug,
+        "Launching DMA write: dst=%#x len=%zu bytes\n", dst, pendingWriteSize);
+
+    // dmaWrite expects size in bytes, event pointer, then data pointer
+    // dmaWrite(dst, static_cast<int>(pendingWriteSize), nullptr, pendingWriteBuf);
+    size_t sizeBytes = static_cast<size_t>(len) * sizeof(uint64_t);
+    dmaWrite(dst,
+        static_cast<int>(sizeBytes),
+        new EventFunctionWrapper([this, sizeBytes]{ this->dmaWriteComplete(); },
+                                 "MemcpyAccel DMA read complete"),
+        pendingWriteBuf);    
 }
 
 void
-MemCpyAccel::dmaReadComplete(PacketPtr pkt)
+MemCpyAccel::dmaReadComplete(size_t bytes)
 {
     // issue a write with the same data
-    // uint8_t *data = new uint8_t[len];
-    // memcpy(data, pkt->getConstPtr<uint8_t>(), len);  
-    // dmaWrite(dst, static_cast<unsigned long>(len), nullptr, data);
-    //dmaWrite(dst, static_cast<unsigned long>(len), nullptr, pkt->getConstPtr<uint8_t>());
-    DPRINTF(MemCpyAccelDebug,
-        "DMA read complete: src=%#x len=%d bytes\n", src, len);
-    // Extract base and exponent from memory
-    const uint64_t *data = pkt->getConstPtr<uint64_t>();
-    DPRINTF(MemCpyAccelDebug, "First few input words: ");
-     for (int i = 0; i < std::min(len, 4); i++)
-        DPRINTF(MemCpyAccelDebug, "%#llx ", data[i]);
-    DPRINTF(MemCpyAccelDebug, "\n");
-    // Assume 'len' is the number of elements (not bytes)
-    std::vector<double> output(len);
+    DPRINTF(MemCpyAccelDebug, "ENTER dmaReadComplete\n");
 
-    for (int i = 0; i < len; i++) {
-        output[i] = std::exp(data[i]);
-    }
-    
-   // 3. Allocate memory for DMA writeback
-    uint8_t *writeData = new uint8_t[len * sizeof(double)];
-    std::memcpy(writeData, output.data(), len * sizeof(double));
-     // 4. Kick off the DMA write
-     DPRINTF(MemCpyAccelDebug,
-        "Launching DMA write: dst=%#x len=%d bytes\n", dst, len * sizeof(double));
+    Cycles computeCycles = Cycles(100); // pick whatever latency you want
+    Tick computeDelay = computeCycles * clockPeriod(); // convert to simulation ticks
 
-    dmaWrite(dst, len * sizeof(double), nullptr, writeData);
-    
+    schedule(new EventFunctionWrapper([this, bytes]() {
+        this->performComputation(bytes);
+    }, "MemcpyAccel Computation Complete"), curTick() + computeDelay);
 }
 
-
 void
-MemCpyAccel::dmaWriteComplete(PacketPtr pkt)
+MemCpyAccel::dmaWriteComplete()
 {
-    //delete pkt; // free write packet
+    DPRINTF(MemCpyAccelDebug, "ENTER dmaWriteComplete\n");
 
+
+    const double *wdata = reinterpret_cast<const double *>(pendingWriteBuf);
+    size_t elems = pendingWriteSize / sizeof(double);
+
+    // DPRINTF(MemCpyAccelDebug,
+    //     "DMA WRITE complete: wrote %zu doubles to dst=%#llx\n",
+    //     elems, (unsigned long long)dst);
+
+    // for (size_t i = 0; i < std::min<size_t>(elems, 8); ++i) {
+    //     DPRINTF(MemCpyAccelDebug,
+    //         "  WRITE[%zu] @%#llx = %f (0x%016llx)\n",
+    //         i, (unsigned long long)(dst + i * sizeof(double)),
+    //         wdata[i], *(reinterpret_cast<const uint64_t *>(&wdata[i])));
+    // }
+
+    if (pendingWriteBuf) {
+        delete[] pendingWriteBuf;
+        pendingWriteBuf = nullptr;
+    }
+
+    // Optionally free the pending read buffer if you don't need it anymore
+    if (pendingReadBuf) {
+        delete[] pendingReadBuf;
+        pendingReadBuf = nullptr;
+        pendingReadSize = 0;
+    }
+
+    // update control bits
     ctrl_and_len |= 1 << 30; // set done bit
     ctrl_and_len &= ~(1 << 31); // clear start bit 
-      DPRINTF(MemCpyAccelDebug,
+
+    DPRINTF(MemCpyAccelDebug,
         "DMA write complete: dst=%#x len=%d bytes; done bit set\n",
-        dst, len * sizeof(double));
+        dst, len * static_cast<int>(sizeof(double)));
 }
 
 Tick
@@ -102,9 +163,6 @@ MemCpyAccel::read(PacketPtr pkt)
       case 0x08: data = ctrl_and_len; break;
       default: panic("MemcpyAccel: bad read offset %#x\n", offset);
     }
-DPRINTF(MemCpyAccelDebug,
-        "PIO read: offset=%#x -> value=%#llx\n", offset, data);
-
     pkt->setUintX(data, ByteOrder::little);
     pkt->makeResponse();
     return pioDelay; // how long it takes to read from the register

@@ -7,6 +7,7 @@
 #include "mem/packet_access.hh"
 #include "params/MemCpyAccel.hh"
 #include "params/MemCpyPioDevice.hh"
+#include "debug/MemCpyAccelDebug.hh"
 
 namespace gem5
 {
@@ -41,6 +42,10 @@ class MemCpyPioDevice : public BasicPioDevice, public MemCpyBase
 class MemCpyAccel : public DmaDevice, public MemCpyBase
 {
   protected:
+    uint8_t *pendingReadBuf = nullptr;     // buffer we pass to dmaRead
+    uint8_t *pendingWriteBuf = nullptr;    // buffer we pass to dmaWrite (freed on dmaWriteComplete)
+    size_t pendingReadSize = 0;            // bytes
+    size_t pendingWriteSize = 0;           // bytes
     Addr src;
     Addr dst;
     uint32_t ctrl_and_len;
@@ -49,6 +54,24 @@ class MemCpyAccel : public DmaDevice, public MemCpyBase
     Addr pioAddr;
     Addr pioSize;
     Tick pioDelay;
+    
+    // class MemCpyDmaPort : public DmaPort
+    // {
+    //   private:
+    //     MemCpyAccel *owner;
+
+    //   public:
+    //     MemCpyDmaPort(MemCpyAccel *owner_, System *sys)
+    //         : DmaPort(owner_, sys), owner(owner_) {}
+
+    //     bool recvTimingResp(PacketPtr pkt) override
+    //     {
+    //         // forward completions back to the accelerator
+    //         DPRINTF(MemCpyAccelDebug, "MemCpyDmaPort::recvTimingResp called for addr=%#llx size=%u\n", pkt->getAddr(), pkt->getSize());
+    //         owner->handleDmaResp(pkt);
+    //         return true;
+    //     }
+    //   };
 
   public:
     MemCpyAccel(const MemCpyAccelParams *p);
@@ -60,9 +83,12 @@ class MemCpyAccel : public DmaDevice, public MemCpyBase
     /* DMA operations */
     void startMemcpy();
     AddrRangeList getAddrRanges() const override;
-    void dmaReadComplete(PacketPtr pkt);
-    void dmaWriteComplete(PacketPtr pkt);
-
+    //MemCpyDmaPort dmaPort;
+    void performComputation(size_t bytes);
+    void dmaReadComplete(size_t bytes);
+    //void dmaReadComplete(PacketPtr pkt);
+    void dmaWriteComplete();
+   // bool handleDmaResp(PacketPtr pkt);
 };
 
 } // namespace gem5
