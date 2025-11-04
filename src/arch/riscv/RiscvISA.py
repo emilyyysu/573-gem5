@@ -92,7 +92,9 @@ class RiscvISA(BaseISA):
     cxx_class = "gem5::RiscvISA::ISA"
     cxx_header = "arch/riscv/isa.hh"
 
-    riscv_type = Param.RiscvType("RV64", "RV32 or RV64")
+    riscv_type = Param.RiscvType("RV32", "RV32 or RV64")
+
+    #riscv_type = Param.RiscvType("RV64", "RV32 or RV64")
 
     enable_rvv = Param.Bool(True, "Enable vector extension")
     vlen = Param.RiscvVectorLength(
