@@ -98,8 +98,17 @@ MemCpyAccel::dmaReadComplete(size_t bytes)
 {
     DPRINTF(MemCpyAccelDebug, "ENTER dmaReadComplete (bytes=%zu)\n", bytes);
 
-    Cycles computeCycles = Cycles(100); // simulated compute latency
-    Tick computeDelay = computeCycles * clockPeriod();
+    const double bytes_per_cycle = 16.0;  // effective bandwidth of the accelerator (bytes per cycle)
+    const Cycles baseSetupCycles = Cycles(20); // constant control/setup overhead
+
+    // Compute memory-related delay proportional to the number of bytes
+    Cycles memLatencyCycles = Cycles(static_cast<uint64_t>(
+    std::ceil(static_cast<double>(bytes) / bytes_per_cycle)));
+
+    Cycles totalCycles = baseSetupCycles + memLatencyCycles;
+    Tick computeDelay = totalCycles * clockPeriod();
+    // Cycles computeCycles = Cycles(100); // simulated compute latency
+    // Tick computeDelay = computeCycles * clockPeriod();
 
     schedule(new EventFunctionWrapper([this, bytes]() {
         this->performComputation(bytes);
