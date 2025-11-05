@@ -59,10 +59,17 @@ void MemCpyAccel::performComputation(size_t bytes) {
     const uint8_t *srcBytes = pendingReadBuf;
     const uint32_t *data = reinterpret_cast<const uint32_t *>(srcBytes);
 
+    std::vector<float> exps(num_u32);
     std::vector<float> output(num_u32);
+    float exp_sum = 0;
     for (size_t i = 0; i < num_u32; ++i) {
         float x = reinterpret_cast<const float &>(data[i]); // interpret input as float
-        output[i] = std::exp(x); // compute exp(x)
+        exps[i] = std::exp(x); // compute exp(x)
+        exp_sum += std::exp(x);
+    }
+
+    for (size_t i = 0; i < num_u32; ++i) {
+        output[i] = exps[i] / exp_sum;
     }
     // prepare write-back buffer (bytes) containing doubles
     if (pendingWriteBuf) {

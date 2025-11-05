@@ -32,7 +32,7 @@ void _start()
 
     // Let's use 512 KiB (enough for simulation but not too huge)
     // Each float = 4 bytes => 512 KiB / 4 = 131072 elements
-    const uint32_t N = 50000;
+    const uint32_t N = 100;
     volatile float *dst = src + N;
 
     volatile uint32_t *src_reg  = (uint32_t *)0xC0000000;
@@ -42,7 +42,7 @@ void _start()
     // Initialize inputs (0.0, 1.0, 2.0, 3.0, ...)
     for (uint32_t i = 0; i < N; i++) {
         print_hex(i);
-        src[i] = (float)i;
+        src[i] = (float)2;
     }
 
     // Program accelerator
