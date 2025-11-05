@@ -92,6 +92,7 @@ m5.instantiate()
 # Dedicate upper 1GB to device
 system.cpu.workload[0].map(0x40000000, 0x40000000, 0x00000100, cacheable=True)
 system.cpu.workload[0].map(0x60000000, 0x60000000, 0x00000020, cacheable=False)
+system.cpu.workload[0].map(0x80000000, 0x80000000, 0x80000000, cacheable=True)
 
 
 # Dedicate upper 1GB to device
