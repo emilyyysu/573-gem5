@@ -1,6 +1,6 @@
 Import('*')
 
-SimObject('MemCpyAccel.py', sim_objects=['MemCpyPioDevice', 'MemCpyAccel'])
+SimObject('MemCpyAccel.py', sim_objects=['MemCpyAccel'])
 Source('memcpyaccel.cc')
 
 DebugFlag('MemCpyAccelDebug', "For Learning gem5 Part 2. Simple example debug flag")
