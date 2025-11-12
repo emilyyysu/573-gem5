@@ -55,7 +55,7 @@ class MemCpyAccel : public DmaDevice, public MemCpyBase
 
   public:
     MemCpyAccel(const MemCpyAccelParams *p);
-    
+
     /* PIO read/write access */
     Tick read(PacketPtr pkt) override;
     Tick write(PacketPtr pkt) override;

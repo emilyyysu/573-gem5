@@ -1,6 +1,9 @@
 import m5
 from m5.objects import *
-from m5.objects import MemCpyAccel, BasicPioDevice
+from m5.objects import (
+    BasicPioDevice,
+    MemCpyAccel,
+)
 
 system = System()
 
@@ -13,7 +16,7 @@ system.mem_mode = "timing"
 #     AddrRange((0x40000000,0x60000000)),   # normal DRAM
 #     AddrRange((0x60000000,0x60000020))      # MemCpyAccel PIO registers
 # ]
-system.mem_ranges = [AddrRange(0xA0000000, size='512MB')]
+system.mem_ranges = [AddrRange(0xA0000000, size="512MB")]
 
 system.cpu = RiscvTimingSimpleCPU()
 
@@ -39,8 +42,9 @@ system.system_port = system.membus.cpu_side_ports
 
 # --- Workload ---
 thispath = os.path.dirname(os.path.realpath(__file__))
-#binary = os.path.join(thispath, "../../../small_test.elf")
-binary = os.path.join(thispath, "../../../big_test.elf")  
+# binary = os.path.join(thispath, "../../../small_test.elf")
+# binary = os.path.join(thispath, "../../../big_test.elf")
+binary = os.path.join(thispath, "../../../../build/simple_test")
 
 
 # Set up SE workload
