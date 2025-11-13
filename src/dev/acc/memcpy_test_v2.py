@@ -16,7 +16,7 @@ system.mem_mode = "timing"
 #     AddrRange((0x40000000,0x60000000)),   # normal DRAM
 #     AddrRange((0x60000000,0x60000020))      # MemCpyAccel PIO registers
 # ]
-system.mem_ranges = [AddrRange(0xA0000000, size="512MB")]
+system.mem_ranges = [AddrRange(0xA0000000, size="512MiB")]
 
 system.cpu = RiscvTimingSimpleCPU()
 
