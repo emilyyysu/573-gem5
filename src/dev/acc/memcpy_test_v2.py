@@ -16,7 +16,7 @@ system.mem_mode = "timing"
 #     AddrRange((0x40000000,0x60000000)),   # normal DRAM
 #     AddrRange((0x60000000,0x60000020))      # MemCpyAccel PIO registers
 # ]
-system.mem_ranges = [AddrRange(0xA0000000, size="512MB")]
+system.mem_ranges = [AddrRange(0xA0000000, size="512MiB")]
 
 system.cpu = RiscvTimingSimpleCPU()
 
@@ -45,6 +45,7 @@ thispath = os.path.dirname(os.path.realpath(__file__))
 # binary = os.path.join(thispath, "../../../small_test.elf")
 # binary = os.path.join(thispath, "../../../big_test.elf")
 binary = os.path.join(thispath, "../../../../build/simple_test")
+# binary = os.path.join(thispath, "../../../../build/big_test")
 
 
 # Set up SE workload
