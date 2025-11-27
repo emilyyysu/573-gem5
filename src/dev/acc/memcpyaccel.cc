@@ -62,14 +62,38 @@ void MemCpyAccel::performComputation(size_t bytes) {
     std::vector<float> exps(num_u32);
     std::vector<float> output(num_u32);
     float exp_sum = 0;
+
+    // Find max(x) for numerical stability
+    float max_x = -std::numeric_limits<float>::infinity();
+    for (size_t i = 0; i < num_u32; ++i) {
+        float x = reinterpret_cast<const float &>(data[i]);
+        if (x > max_x) {
+            max_x = x;
+        }
+    }
+
+    // Compute exp
+    constexpr float cutoff = -20.0f;
+    size_t skipped = 0;
+
     for (size_t i = 0; i < num_u32; ++i) {
         float x = reinterpret_cast<const float &>(data[i]); // interpret input as float
+        float shifted = x - max_x;
+        if(shifted < cutoff) {
+            exps[i] = 0.0f;
+            skipped++;
+            continue;
+        }
         exps[i] = std::exp(x); // compute exp(x)
-        exp_sum += std::exp(x);
+        exp_sum += exps[i];
     }
 
     for (size_t i = 0; i < num_u32; ++i) {
-        output[i] = exps[i] / exp_sum;
+        if(exps[i] == 0.0f) {
+            output[i] = 0.0f;
+        } else {
+            output[i] = exps[i] / exp_sum;
+        }
     }
     // prepare write-back buffer (bytes) containing doubles
     if (pendingWriteBuf) {
@@ -81,16 +105,36 @@ void MemCpyAccel::performComputation(size_t bytes) {
     std::memcpy(pendingWriteBuf, output.data(), pendingWriteSize);
 
 
-    DPRINTF(MemCpyAccelDebug,
-        "Launching DMA write: dst=%#llx len=%zu bytes\n",
-        static_cast<unsigned long long>(dst), pendingWriteSize);
+    // DPRINTF(MemCpyAccelDebug,
+    //     "Launching DMA write: dst=%#llx len=%zu bytes\n",
+    //     static_cast<unsigned long long>(dst), pendingWriteSize);
 
-    // Note: write back the number of bytes we actually produced (pendingWriteSize).
-    dmaWrite(static_cast<Addr>(dst),
-        static_cast<int>(pendingWriteSize),
-        new EventFunctionWrapper([this]{ this->dmaWriteComplete(); },
-                                 "MemcpyAccel DMA write complete"),
-        pendingWriteBuf);
+    // // Note: write back the number of bytes we actually produced (pendingWriteSize).
+    // dmaWrite(static_cast<Addr>(dst),
+    //     static_cast<int>(pendingWriteSize),
+    //     new EventFunctionWrapper([this]{ this->dmaWriteComplete(); },
+    //                              "MemcpyAccel DMA write complete"),
+    //     pendingWriteBuf);
+
+    // --- calculate compute latency (based on skipped) ---
+    size_t computed = num_u32 - skipped;
+
+    // unsigned long long maxPassCycles = Cycles(1)  * num_u32;  // max pass
+    // unsigned long long expPassCycles = Cycles(20) * computed; // exp pass
+    Cycles computeCycles = Cycles(0);
+    computeCycles += Cycles(1 * num_u32);   // max pass
+    computeCycles += Cycles(20 * computed);  // exp pass
+
+    Tick computeDelay = computeCycles * clockPeriod();
+
+    // --- schedule DMA WRITE *after* compute delay ---
+    schedule(new EventFunctionWrapper([this]() {
+        dmaWrite(static_cast<Addr>(dst),
+                static_cast<int>(pendingWriteSize),
+                new EventFunctionWrapper([this]{ this->dmaWriteComplete(); },
+                                        "MemcpyAccel DMA write complete"),
+                pendingWriteBuf);
+    }, "MemcpyAccel Compute Delay"), curTick() + computeDelay);
 }
 
 void
@@ -112,7 +156,7 @@ MemCpyAccel::dmaReadComplete(size_t bytes)
 
     schedule(new EventFunctionWrapper([this, bytes]() {
         this->performComputation(bytes);
-    }, "MemcpyAccel Computation Complete"), curTick() + computeDelay);
+    }, "MemcpyAccel Computation Complete"), curTick());
 }
 
 void
