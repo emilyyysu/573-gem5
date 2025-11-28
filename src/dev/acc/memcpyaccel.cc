@@ -74,6 +74,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
 
     // Compute exp
     constexpr float cutoff = -20.0f;
+    constexpr float epsilon = 1e-30;
     size_t skipped = 0;
 
     for (size_t i = 0; i < num_u32; ++i) {
@@ -90,7 +91,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
 
     for (size_t i = 0; i < num_u32; ++i) {
         if(exps[i] == 0.0f) {
-            output[i] = 0.0f;
+            output[i] = epsilon;
         } else {
             output[i] = exps[i] / exp_sum;
         }
