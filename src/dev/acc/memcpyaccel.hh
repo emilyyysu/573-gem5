@@ -6,7 +6,7 @@
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
 #include "params/MemCpyAccel.hh"
-#include "params/MemCpyPioDevice.hh"
+// #include "params/MemCpyPioDevice.hh"
 #include "debug/MemCpyAccelDebug.hh"
 
 namespace gem5
@@ -28,15 +28,6 @@ class MemCpyBase
 /**
  * Simple PIO-based memcpy device.
  */
-class MemCpyPioDevice : public BasicPioDevice, public MemCpyBase
-{
-  protected:
-    uint32_t devId;   //!< optional device ID / version tag
-
-  public:
-    MemCpyPioDevice(const MemCpyPioDeviceParams &p, Addr pio_size);
-};
-
 class MemCpyAccel : public DmaDevice, public MemCpyBase
 {
   protected:
