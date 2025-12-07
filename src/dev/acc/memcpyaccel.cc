@@ -147,15 +147,6 @@ void MemCpyAccel::performComputation(size_t bytes) {
     std::vector<float> exps(num_u32);
     std::vector<float> output(num_u32);
 
-    // Find max(x) for numerical stability
-    float max_x = -std::numeric_limits<float>::infinity();
-    for (size_t i = 0; i < num_u32; ++i) {
-        float x = reinterpret_cast<const float &>(data[i]);
-        if (x > max_x) {
-            max_x = x;
-        }
-    }
-
     // Compute exp
     // -std::numeric_limits<float>::infinity() to disable
     constexpr float cutoff = -149.0; // proof in slides
@@ -175,13 +166,14 @@ void MemCpyAccel::performComputation(size_t bytes) {
         for (size_t j = 0; j < chunkSize; j++) {
           // interpret input as float
           float x = reinterpret_cast<const float &>(data[i + j]);
-          if (x <= cutoff + std::log2(exp_sum)) {
+          if (x <= cutoff + std::log(exp_sum)) {
              chunk[j] = 0.0f;
              skipped++;
              stats.zeroCount++;
           } else {
-             chunk[j] = std::exp(x); // compute exp(x)
+             chunk[j] = std::exp(x);
           }
+          exps[i+j] = chunk[j];
         }
 
         // Add this chunk with the 32-input adder tree
