@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 #include "base/trace.hh"
@@ -156,24 +157,9 @@ void MemCpyAccel::performComputation(size_t bytes) {
     }
 
     // Compute exp
-    constexpr float cutoff = -0.8f; // parametrize this
+    // -std::numeric_limits<float>::infinity() to disable
+    constexpr float cutoff = -149.0; // proof in slides
     size_t skipped = 0;
-
-    for (size_t i = 0; i < num_u32; ++i) {
-        float x = reinterpret_cast<const float &>(data[i]); // interpret input as float
-        if(x < cutoff) {
-            exps[i] = 0.0f;
-            skipped++;
-            stats.zeroCount++;
-            continue;
-        }
-        exps[i] = std::exp(x); // compute exp(x)
-    }
-
-    // ---- zero count ----
-    DPRINTF(MemCpyAccelDebug,
-        "ZeroCount (cumulative) = %llu\n",
-        (unsigned long long)stats.zeroCount.value());
 
     // ---- adder tree ----
     size_t s0 = stats.switchingAdd.value();
@@ -186,8 +172,17 @@ void MemCpyAccel::performComputation(size_t bytes) {
         float chunk[32] = {0.0f};
         size_t chunkSize = std::min((size_t)32, num_u32 - i);
 
-        for (size_t j = 0; j < chunkSize; j++)
-            chunk[j] = exps.data()[i + j];
+        for (size_t j = 0; j < chunkSize; j++) {
+          // interpret input as float
+          float x = reinterpret_cast<const float &>(data[i + j]);
+          if (x <= cutoff + std::log2(exp_sum)) {
+             chunk[j] = 0.0f;
+             skipped++;
+             stats.zeroCount++;
+          } else {
+             chunk[j] = std::exp(x); // compute exp(x)
+          }
+        }
 
         // Add this chunk with the 32-input adder tree
         float chunkSum = adderTree32(chunk);
@@ -199,6 +194,11 @@ void MemCpyAccel::performComputation(size_t bytes) {
     }
 
     //float exp_sum = adderTree32(exps.data());
+
+    // ---- zero count ----
+    DPRINTF(MemCpyAccelDebug,
+        "ZeroCount (cumulative) = %llu\n",
+        (unsigned long long)stats.zeroCount.value());
 
     DPRINTF(MemCpyAccelDebug,
         "AdderTree: switches=%llu→%llu same=%llu→%llu\n",
