@@ -1,14 +1,15 @@
 #ifndef __MEMCPYACCEL_HH__
 #define __MEMCPYACCEL_HH__
 
+#include <array>
+
+#include "debug/MemCpyAccelDebug.hh"
 #include "dev/dma_device.hh"
 #include "dev/io_device.hh"
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
 #include "params/MemCpyAccel.hh"
-#include "params/MemCpyPioDevice.hh"
-#include "debug/MemCpyAccelDebug.hh"
-#include <array>
+#include "sim/stats.hh"
 
 namespace gem5
 {
@@ -29,15 +30,6 @@ class MemCpyBase
 /**
  * Simple PIO-based memcpy device.
  */
-class MemCpyPioDevice : public BasicPioDevice, public MemCpyBase
-{
-  protected:
-    uint32_t devId;   //!< optional device ID / version tag
-
-  public:
-    MemCpyPioDevice(const MemCpyPioDeviceParams &p, Addr pio_size);
-};
-
 class MemCpyAccel : public DmaDevice, public MemCpyBase
 {
   protected:
@@ -63,19 +55,20 @@ class MemCpyAccel : public DmaDevice, public MemCpyBase
     std::array<float,  2> prev4;
     float prev5;
 
-    // Adder tree switching counters
-    uint64_t switchingAdd = 0;
-    uint64_t sameAdd = 0;
+    // Add stats collection
+  protected:
+    struct StatGroup : public statistics::Group
+    {
+      StatGroup(statistics::Group *parent);
 
-    // Division switching counters
-    uint64_t switchingDiv = 0;
-    uint64_t sameDiv = 0;
+      statistics::Scalar zeroCount;
+      statistics::Scalar sameAdd, switchingAdd;
+      statistics::Scalar sameDiv, switchingDiv;
+    } stats;
 
-    // Number of zeros
-    uint64_t zeroCount = 0;
 
     // Adder tree helper
-    float adderTree32(const float* stage0, uint64_t& switchingCount, uint64_t& sameInputCount);
+    float adderTree32(const float* stage0);
 
 
   public:

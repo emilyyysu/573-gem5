@@ -1,19 +1,34 @@
 #include "dev/acc/memcpyaccel.hh"
-#include "base/trace.hh"
-#include <iostream>
-#include <cstring>
-#include <vector>
-#include <cmath>
+
 #include <array>
+#include <cmath>
+#include <cstring>
+#include <iostream>
+#include <vector>
+
+#include "base/trace.hh"
 #include "debug/MemCpyAccelDebug.hh"
+#include "sim/stats.hh"
 
 namespace gem5
 {
+    MemCpyAccel::StatGroup::StatGroup(statistics::Group *parent)
+      : statistics::Group(parent),
+        ADD_STAT(zeroCount
+                ,"Number of times the accelerator skipped a record"),
+        ADD_STAT(sameAdd, "Number of times the Adder reports redundancies"),
+        ADD_STAT(switchingAdd, "Number of times the Adder reports switching"),
+        ADD_STAT(sameDiv, "Number of times the Divider reports redundancies"),
+        ADD_STAT(switchingDiv, "Number of times the Divider reports switching")
+    {
+    }
+
+
     MemCpyAccel::MemCpyAccel(const MemCpyAccelParams *p)
         : DmaDevice(*p),
           src(0), dst(0), ctrl_and_len(0), len(0),
           pioAddr(0xC0000000), pendingReadBuf(nullptr), pendingWriteBuf(nullptr),
-          pendingReadSize(0), pendingWriteSize(0)
+          pendingReadSize(0), pendingWriteSize(0), stats(this)
     {
         std::cout << "does this construct? " << std::endl;
         DPRINTF(MemCpyAccelDebug, "MemCpyAccel constructed\n");
@@ -27,14 +42,14 @@ namespace gem5
     }
 
 float
-MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t& sameInputCountRef)
+MemCpyAccel::adderTree32(const float* in)
 {
     // Stage 0 → 32
     float s0[32];
     for (int i = 0; i < 32; ++i) {
         s0[i] = in[i];
-        if (s0[i] == prev0[i]) sameInputCountRef++;
-        else switchingCountRef++;
+        if (s0[i] == prev0[i]) stats.sameAdd++;
+        else stats.switchingAdd++;
         prev0[i] = s0[i];
     }
 
@@ -42,8 +57,8 @@ MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t&
     float s1[16];
     for (int i = 0; i < 16; ++i) {
         float v = s0[2*i] + s0[2*i+1];
-        if (v == prev1[i]) sameInputCountRef++;
-        else switchingCountRef++;
+        if (v == prev1[i]) stats.sameAdd++;
+        else stats.switchingAdd++;
         s1[i] = v;
         prev1[i] = v;
     }
@@ -52,8 +67,8 @@ MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t&
     float s2[8];
     for (int i = 0; i < 8; ++i) {
         float v = s1[2*i] + s1[2*i+1];
-        if (v == prev2[i]) sameInputCountRef++;
-        else switchingCountRef++;
+        if (v == prev2[i]) stats.sameAdd++;
+        else stats.switchingAdd++;
         s2[i] = v;
         prev2[i] = v;
     }
@@ -62,8 +77,8 @@ MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t&
     float s3[4];
     for (int i = 0; i < 4; ++i) {
         float v = s2[2*i] + s2[2*i+1];
-        if (v == prev3[i]) sameInputCountRef++;
-        else switchingCountRef++;
+        if (v == prev3[i]) stats.sameAdd++;
+        else stats.switchingAdd++;
         s3[i] = v;
         prev3[i] = v;
     }
@@ -72,16 +87,16 @@ MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t&
     float s4[2];
     for (int i = 0; i < 2; ++i) {
         float v = s3[2*i] + s3[2*i+1];
-        if (v == prev4[i]) sameInputCountRef++;
-        else switchingCountRef++;
+        if (v == prev4[i]) stats.sameAdd++;
+        else stats.switchingAdd++;
         s4[i] = v;
         prev4[i] = v;
     }
 
     // Stage 5 final → 1
     float result = s4[0] + s4[1];
-    if (result == prev5) sameInputCountRef++;
-    else switchingCountRef++;
+    if (result == prev5) stats.sameAdd++;
+    else stats.switchingAdd++;
     prev5 = result;
 
     return result;
@@ -150,20 +165,20 @@ void MemCpyAccel::performComputation(size_t bytes) {
         if(shifted < cutoff) {
             exps[i] = 0.0f;
             skipped++;
-            zeroCount++;
+            stats.zeroCount++;
             continue;
         }
         exps[i] = std::exp(x); // compute exp(x)
     }
-    
+
     // ---- zero count ----
     DPRINTF(MemCpyAccelDebug,
         "ZeroCount (cumulative) = %llu\n",
-        (unsigned long long)zeroCount);
+        (unsigned long long)stats.zeroCount.value());
 
     // ---- adder tree ----
-    uint64_t s0 = switchingAdd;
-    uint64_t r0 = sameAdd;
+    size_t s0 = stats.switchingAdd.value();
+    size_t r0 = stats.sameAdd.value();
     float exp_sum = 0.0f;
     size_t i = 0;
 
@@ -176,7 +191,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
             chunk[j] = exps.data()[i + j];
 
         // Add this chunk with the 32-input adder tree
-        float chunkSum = adderTree32(chunk, switchingAdd, sameAdd);
+        float chunkSum = adderTree32(chunk);
 
         // Accumulate to running sum
         exp_sum += chunkSum;
@@ -184,16 +199,16 @@ void MemCpyAccel::performComputation(size_t bytes) {
         i += chunkSize;
     }
 
-    //float exp_sum = adderTree32(exps.data(), switchingAdd, sameAdd);
+    //float exp_sum = adderTree32(exps.data());
 
     DPRINTF(MemCpyAccelDebug,
         "AdderTree: switches=%llu→%llu same=%llu→%llu\n",
-        (unsigned long long)s0, (unsigned long long)switchingAdd,
-        (unsigned long long)r0, (unsigned long long)sameAdd);
-    
+        (unsigned long long)s0, (unsigned long long)stats.switchingAdd.value(),
+        (unsigned long long)r0, (unsigned long long)stats.sameAdd.value());
+
     // ---- div switching count ----
-    uint64_t divSwitch_before = switchingDiv;
-    uint64_t divSame_before   = sameDiv;
+    uint64_t divSwitch_before = stats.switchingDiv.value();
+    uint64_t divSame_before   = stats.sameDiv.value();
 
     i = 0;
     while (i < num_u32) {
@@ -203,9 +218,9 @@ void MemCpyAccel::performComputation(size_t bytes) {
         // Process division switching/same counts for this chunk
         for (size_t j = 0; j < chunkSize; j++) {
             if (exps[i + j] == prevDivNum[j])
-                sameDiv++;
+                stats.sameDiv++;
             else
-                switchingDiv++;
+                stats.switchingDiv++;
 
             prevDivNum[j] = exps[i + j];
         }
@@ -226,9 +241,9 @@ void MemCpyAccel::performComputation(size_t bytes) {
     DPRINTF(MemCpyAccelDebug,
         "Division: switching %llu→%llu  same %llu→%llu\n",
         (unsigned long long)divSwitch_before,
-        (unsigned long long)switchingDiv,
+        (unsigned long long)stats.switchingDiv.value(),
         (unsigned long long)divSame_before,
-        (unsigned long long)sameDiv);
+        (unsigned long long)stats.sameDiv.value());
 
     for (size_t i = 0; i < num_u32; ++i) {
         if(exps[i] == 0.0f) {
