@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include <cmath>
+#include <array>
 #include "debug/MemCpyAccelDebug.hh"
 
 namespace gem5
@@ -16,7 +17,75 @@ namespace gem5
     {
         std::cout << "does this construct? " << std::endl;
         DPRINTF(MemCpyAccelDebug, "MemCpyAccel constructed\n");
+        prevDivNum.fill(0.0f);
+        prev0.fill(0.0f);
+        prev1.fill(0.0f);
+        prev2.fill(0.0f);
+        prev3.fill(0.0f);
+        prev4.fill(0.0f);
+        prev5 = 0.0f;
     }
+
+float
+MemCpyAccel::adderTree32(const float* in, uint64_t& switchingCountRef, uint64_t& sameInputCountRef)
+{
+    // Stage 0 → 32
+    float s0[32];
+    for (int i = 0; i < 32; ++i) {
+        s0[i] = in[i];
+        if (s0[i] == prev0[i]) sameInputCountRef++;
+        else switchingCountRef++;
+        prev0[i] = s0[i];
+    }
+
+    // Stage 1 → 16
+    float s1[16];
+    for (int i = 0; i < 16; ++i) {
+        float v = s0[2*i] + s0[2*i+1];
+        if (v == prev1[i]) sameInputCountRef++;
+        else switchingCountRef++;
+        s1[i] = v;
+        prev1[i] = v;
+    }
+
+    // Stage 2 → 8
+    float s2[8];
+    for (int i = 0; i < 8; ++i) {
+        float v = s1[2*i] + s1[2*i+1];
+        if (v == prev2[i]) sameInputCountRef++;
+        else switchingCountRef++;
+        s2[i] = v;
+        prev2[i] = v;
+    }
+
+    // Stage 3 → 4
+    float s3[4];
+    for (int i = 0; i < 4; ++i) {
+        float v = s2[2*i] + s2[2*i+1];
+        if (v == prev3[i]) sameInputCountRef++;
+        else switchingCountRef++;
+        s3[i] = v;
+        prev3[i] = v;
+    }
+
+    // Stage 4 → 2
+    float s4[2];
+    for (int i = 0; i < 2; ++i) {
+        float v = s3[2*i] + s3[2*i+1];
+        if (v == prev4[i]) sameInputCountRef++;
+        else switchingCountRef++;
+        s4[i] = v;
+        prev4[i] = v;
+    }
+
+    // Stage 5 final → 1
+    float result = s4[0] + s4[1];
+    if (result == prev5) sameInputCountRef++;
+    else switchingCountRef++;
+    prev5 = result;
+
+    return result;
+}
 
 void
 MemCpyAccel::startMemcpy()
@@ -61,7 +130,6 @@ void MemCpyAccel::performComputation(size_t bytes) {
 
     std::vector<float> exps(num_u32);
     std::vector<float> output(num_u32);
-    float exp_sum = 0;
 
     // Find max(x) for numerical stability
     float max_x = -std::numeric_limits<float>::infinity();
@@ -73,8 +141,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
     }
 
     // Compute exp
-    constexpr float cutoff = -20.0f;
-    constexpr float epsilon = 1e-30;
+    constexpr float cutoff = -0.8f; // parametrize this
     size_t skipped = 0;
 
     for (size_t i = 0; i < num_u32; ++i) {
@@ -83,15 +150,89 @@ void MemCpyAccel::performComputation(size_t bytes) {
         if(shifted < cutoff) {
             exps[i] = 0.0f;
             skipped++;
+            zeroCount++;
             continue;
         }
         exps[i] = std::exp(x); // compute exp(x)
-        exp_sum += exps[i];
     }
+    
+    // ---- zero count ----
+    DPRINTF(MemCpyAccelDebug,
+        "ZeroCount (cumulative) = %llu\n",
+        (unsigned long long)zeroCount);
+
+    // ---- adder tree ----
+    uint64_t s0 = switchingAdd;
+    uint64_t r0 = sameAdd;
+    float exp_sum = 0.0f;
+    size_t i = 0;
+
+    while (i < num_u32) {
+        // Take next 32 elements or remaining elements
+        float chunk[32] = {0.0f};
+        size_t chunkSize = std::min((size_t)32, num_u32 - i);
+
+        for (size_t j = 0; j < chunkSize; j++)
+            chunk[j] = exps.data()[i + j];
+
+        // Add this chunk with the 32-input adder tree
+        float chunkSum = adderTree32(chunk, switchingAdd, sameAdd);
+
+        // Accumulate to running sum
+        exp_sum += chunkSum;
+
+        i += chunkSize;
+    }
+
+    //float exp_sum = adderTree32(exps.data(), switchingAdd, sameAdd);
+
+    DPRINTF(MemCpyAccelDebug,
+        "AdderTree: switches=%llu→%llu same=%llu→%llu\n",
+        (unsigned long long)s0, (unsigned long long)switchingAdd,
+        (unsigned long long)r0, (unsigned long long)sameAdd);
+    
+    // ---- div switching count ----
+    uint64_t divSwitch_before = switchingDiv;
+    uint64_t divSame_before   = sameDiv;
+
+    i = 0;
+    while (i < num_u32) {
+        // Take next 32 elements or remaining elements
+        size_t chunkSize = std::min((size_t)32, num_u32 - i);
+
+        // Process division switching/same counts for this chunk
+        for (size_t j = 0; j < chunkSize; j++) {
+            if (exps[i + j] == prevDivNum[j])
+                sameDiv++;
+            else
+                switchingDiv++;
+
+            prevDivNum[j] = exps[i + j];
+        }
+
+        i += chunkSize;
+    }
+
+
+    // for (int i = 0; i < 32; i++) {
+    //     if (exps[i] == prevDivNum[i])
+    //         sameDiv++;
+    //     else
+    //         switchingDiv++;
+
+    //     prevDivNum[i] = exps[i];
+    // }
+
+    DPRINTF(MemCpyAccelDebug,
+        "Division: switching %llu→%llu  same %llu→%llu\n",
+        (unsigned long long)divSwitch_before,
+        (unsigned long long)switchingDiv,
+        (unsigned long long)divSame_before,
+        (unsigned long long)sameDiv);
 
     for (size_t i = 0; i < num_u32; ++i) {
         if(exps[i] == 0.0f) {
-            output[i] = epsilon;
+            output[i] = 0.0f;
         } else {
             output[i] = exps[i] / exp_sum;
         }
@@ -123,8 +264,10 @@ void MemCpyAccel::performComputation(size_t bytes) {
     // unsigned long long maxPassCycles = Cycles(1)  * num_u32;  // max pass
     // unsigned long long expPassCycles = Cycles(20) * computed; // exp pass
     Cycles computeCycles = Cycles(0);
-    computeCycles += Cycles(1 * num_u32);   // max pass
-    computeCycles += Cycles(20 * computed);  // exp pass
+    computeCycles = Cycles(10 * (num_u32/32 + 1)); // let's just say 12 cycles per thing
+    // computeCycles += Cycles(1 * num_u32);   // max pass
+    // computeCycles += Cycles(20 * computed);  // exp pass
+
 
     Tick computeDelay = computeCycles * clockPeriod();
 
@@ -143,8 +286,8 @@ MemCpyAccel::dmaReadComplete(size_t bytes)
 {
     DPRINTF(MemCpyAccelDebug, "ENTER dmaReadComplete (bytes=%zu)\n", bytes);
 
-    const double bytes_per_cycle = 16.0;  // effective bandwidth of the accelerator (bytes per cycle)
-    const Cycles baseSetupCycles = Cycles(20); // constant control/setup overhead
+    const double bytes_per_cycle = 128;  // effective bandwidth of the accelerator (bytes per cycle)
+    const Cycles baseSetupCycles = Cycles(8); // constant control/setup overhead
 
     // Compute memory-related delay proportional to the number of bytes
     Cycles memLatencyCycles = Cycles(static_cast<uint64_t>(
@@ -157,7 +300,7 @@ MemCpyAccel::dmaReadComplete(size_t bytes)
 
     schedule(new EventFunctionWrapper([this, bytes]() {
         this->performComputation(bytes);
-    }, "MemcpyAccel Computation Complete"), curTick());
+    }, "MemcpyAccel Computation Complete"), curTick() + computeDelay);
 }
 
 void

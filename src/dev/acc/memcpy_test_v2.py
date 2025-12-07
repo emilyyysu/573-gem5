@@ -43,8 +43,8 @@ system.system_port = system.membus.cpu_side_ports
 # --- Workload ---
 thispath = os.path.dirname(os.path.realpath(__file__))
 # binary = os.path.join(thispath, "../../../small_test.elf")
-binary = os.path.join(thispath, "../../../small_test_new.elf")
-binary = os.path.join(thispath, "../../../big_test_new.elf")
+#binary = os.path.join(thispath, "../../../small_test_new.elf")
+#binary = os.path.join(thispath, "../../../big_test.elf")
 binary = os.path.join(thispath, "../../../cycle_test.elf")
 # binary = os.path.join(thispath, "../../../../build/simple_test")
 # binary = os.path.join(thispath, "../../../../build/big_test")

@@ -8,6 +8,7 @@
 #include "params/MemCpyAccel.hh"
 #include "params/MemCpyPioDevice.hh"
 #include "debug/MemCpyAccelDebug.hh"
+#include <array>
 
 namespace gem5
 {
@@ -52,6 +53,30 @@ class MemCpyAccel : public DmaDevice, public MemCpyBase
     Addr pioAddr;
     Addr pioSize;
     Tick pioDelay;
+
+    // "Previous cycle" values for switching analysis
+    std::array<float, 32> prevDivNum;
+    std::array<float, 32> prev0;
+    std::array<float, 16> prev1;
+    std::array<float,  8> prev2;
+    std::array<float,  4> prev3;
+    std::array<float,  2> prev4;
+    float prev5;
+
+    // Adder tree switching counters
+    uint64_t switchingAdd = 0;
+    uint64_t sameAdd = 0;
+
+    // Division switching counters
+    uint64_t switchingDiv = 0;
+    uint64_t sameDiv = 0;
+
+    // Number of zeros
+    uint64_t zeroCount = 0;
+
+    // Adder tree helper
+    float adderTree32(const float* stage0, uint64_t& switchingCount, uint64_t& sameInputCount);
+
 
   public:
     MemCpyAccel(const MemCpyAccelParams *p);

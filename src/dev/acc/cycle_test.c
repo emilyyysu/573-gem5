@@ -92,25 +92,25 @@ void _start()
     // Case A: No pruning
     //-----------------------------
     for(uint32_t i=0;i<N;i++)
-        src[i] = max - 0.1f;
+        src[i] = 2.2;
     run_case("No pruning", (float*)src, (float*)dst, N);
 
     //-----------------------------
     // Case B: Full pruning
     //-----------------------------
     for(uint32_t i=0;i<N;i++)
-        src[i] = max - 1000.0f;
-    src[0] = max;
+        src[i] = -0.9;
+    src[0] = 2.2;
     run_case("Full pruning", (float*)src, (float*)dst, N);
 
     //-----------------------------
     // Case C: Partial pruning
     //-----------------------------
     for(uint32_t i=0;i<64;i++)
-        src[i] = max - 10.0f;   // kept
+        src[i] = 0.2;   // kept
     for(uint32_t i=64;i<N;i++)
-        src[i] = max - 50.0f;   // pruned
-    src[0] = max;               // max_x
+        src[i] = -0.9;   // pruned
+    src[0] = 2.2;               // max_x
     run_case("Partial pruning", (float*)src, (float*)dst, N);
 
     // exit
