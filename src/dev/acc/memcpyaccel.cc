@@ -146,8 +146,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
 
     for (size_t i = 0; i < num_u32; ++i) {
         float x = reinterpret_cast<const float &>(data[i]); // interpret input as float
-        float shifted = x - max_x;
-        if(shifted < cutoff) {
+        if(x < cutoff) {
             exps[i] = 0.0f;
             skipped++;
             zeroCount++;
