@@ -148,8 +148,9 @@ void MemCpyAccel::performComputation(size_t bytes) {
     std::vector<float> output(num_u32);
 
     // Compute exp
-    // -std::numeric_limits<float>::infinity() to disable
-    constexpr float cutoff = -149.0; // proof in slides
+    // constexpr float cutoff = -std::numeric_limits<float>::infinity();
+    // constexpr float cutoff = -149.0; // proof in slides
+    constexpr float cutoff = 10.0; // proof in slides
     size_t skipped = 0;
 
     // ---- adder tree ----
@@ -163,10 +164,15 @@ void MemCpyAccel::performComputation(size_t bytes) {
         float chunk[32] = {0.0f};
         size_t chunkSize = std::min((size_t)32, num_u32 - i);
 
+        //float exp_sum = adderTree32(exps.data());
+        DPRINTF(MemCpyAccelDebug,
+                "Cutoff %.3f\n",
+                cutoff + std::log(exp_sum));
+
         for (size_t j = 0; j < chunkSize; j++) {
           // interpret input as float
           float x = reinterpret_cast<const float &>(data[i + j]);
-          if (x <= cutoff + std::log(exp_sum)) {
+          if (x <= std::max(cutoff, cutoff + std::log(exp_sum))) {
              chunk[j] = 0.0f;
              skipped++;
              stats.zeroCount++;
@@ -186,6 +192,9 @@ void MemCpyAccel::performComputation(size_t bytes) {
     }
 
     //float exp_sum = adderTree32(exps.data());
+    DPRINTF(MemCpyAccelDebug,
+        "Cutoff %.3f\n",
+        cutoff + std::log(exp_sum));
 
     // ---- zero count ----
     DPRINTF(MemCpyAccelDebug,
@@ -237,7 +246,7 @@ void MemCpyAccel::performComputation(size_t bytes) {
         (unsigned long long)stats.sameDiv.value());
 
     for (size_t i = 0; i < num_u32; ++i) {
-        if(exps[i] == 0.0f) {
+        if (exps[i] == 0.0f) {
             output[i] = 0.0f;
         } else {
             output[i] = exps[i] / exp_sum;
