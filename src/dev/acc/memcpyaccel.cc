@@ -148,9 +148,8 @@ void MemCpyAccel::performComputation(size_t bytes) {
     std::vector<float> output(num_u32);
 
     // Compute exp
-    // constexpr float cutoff = -std::numeric_limits<float>::infinity();
+    constexpr float cutoff = -std::numeric_limits<float>::infinity();
     // constexpr float cutoff = -149.0; // proof in slides
-    constexpr float cutoff = 10.0; // proof in slides
     size_t skipped = 0;
 
     // ---- adder tree ----
